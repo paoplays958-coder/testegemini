@@ -1,9 +1,9 @@
--- ╔══════════════════════════════════════════════════════╗
--- ║            DRAGON HUB 0.3 - BROOKHAVEN               ║
--- ║        UI Redz Library • Local Script                 ║
--- ╚══════════════════════════════════════════════════════╝
+--[[ =========================================================
+   DRAGON HUB 0.3 • PARAGRAPH EDITION
+   Biblioteca própria com abas estilo Redz, usando apenas Paragraphs.
+   ========================================================= ]]
 
--- Serviços principais
+--// Serviços
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -16,7 +16,7 @@ local rootPart = character:WaitForChild("HumanoidRootPart")
 
 local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
--- Variáveis de sistemas
+--// Estado de sistemas
 local flyEnabled = false
 local flySpeed = 60
 local bodyVelocity, bodyGyro, flyConnection
@@ -29,13 +29,17 @@ local jumpValue = 50
 
 local clickTPTool = nil
 
--- Veículos
 local selectedVehicle = "Sedan"
 local spawnAmount = 3
 local autoRepairEnabled = false
 local infiniteSpeedEnabled = false
 
--- Funções utilitárias
+local vehicleModels = {
+    "Sedan", "SUV", "Pickup", "SportsCar", "PoliceCar",
+    "Ambulance", "Helicopter", "Motorcycle", "Bicycle"
+}
+
+--// Funções utilitárias de personagem
 local function refreshCharacterRefs()
     character = player.Character or player.CharacterAdded:Wait()
     humanoid = character:WaitForChild("Humanoid")
@@ -145,7 +149,7 @@ local function removeClickTPTool()
 end
 
 player.CharacterAdded:Connect(function()
-    wait(2)
+    task.wait(2)
     refreshCharacterRefs()
     stopFly()
     speedEnabled = false
@@ -153,244 +157,1112 @@ player.CharacterAdded:Connect(function()
     removeClickTPTool()
 end)
 
--- Carregar UI
-local redzlib = loadstring(game:HttpGet("https://raw.githubusercontent.com/tbao143/Library-ui/refs/heads/main/Redzhubui"))()
+--// Biblioteca de Paragraphs com abas
+local ParagraphLibrary = {}
+ParagraphLibrary.__index = ParagraphLibrary
 
-local Window = redzlib:MakeWindow({
-    Title = "Dragon Hub 0.3",
-    SubTitle = "Brookhaven Edition",
-    SaveFolder = "DragonHub_Settings.json"
-})
+local ParagraphObject = {}
+ParagraphObject.__index = ParagraphObject
 
--- TAB PRINCIPAL
-local PrincipalTab = Window:MakeTab({
-    Name = "Principal",
-    Icon = "rbxassetid://7733955740",
-    PremiumOnly = false
-})
-
-PrincipalTab:AddSection({Name = "Informações"})
-
-local PrincipalInfo = PrincipalTab:AddParagraph({"Dragon Hub 0.3", "Brookhaven Edition
-" .. (isMobile and "📱 Mobile Ready" or "💻 PC Ready") .. "
-Fly • Speed • Jump • Click TP"})
-
-PrincipalTab:AddSection({Name = "Ações"})
-
-PrincipalTab:AddButton({"Recarregar Personagem", function(Value)
-    player.Character:BreakJoints()
-end})
-
--- TAB FLY
-local FlyTab = Window:MakeTab({
-    Name = "Fly",
-    Icon = "rbxassetid://7733764088",
-    PremiumOnly = false
-})
-
-FlyTab:AddSection({Name = "Controle de Voo"})
-
-local FlyInfo = FlyTab:AddParagraph({"Controles", isMobile and "Use o joystick para mover
-Toque em jump para subir" or "W/A/S/D para direção
-Space para subir • Shift para descer"})
-
-local FlyToggle = FlyTab:AddToggle({
-    Name = "Ativar Fly",
-    Description = "Ative o modo de <font color='rgb(255, 85, 85)'>voo livre</font>",
-    Default = false
-})
-FlyToggle:Callback(function(Value)
-    if Value then
-        startFly()
-    else
-        stopFly()
+local function getGuiParent()
+    local parent
+    if gethui then
+        local success, result = pcall(gethui)
+        if success and result then
+            parent = result
+        end
     end
-end)
+    if not parent then
+        parent = player:WaitForChild("PlayerGui")
+    end
+    return parent
+end
 
-FlyTab:AddSlider({
-    Name = "Velocidade",
+function ParagraphLibrary.new(config)
+    config = config or {}
+    local self = setmetatable({}, ParagraphLibrary)
+
+    self.Paragraphs = {}
+    self.Tabs = {}
+    self.TabOrder = {}
+    self.TabParagraphs = {}
+    self.ActiveTab = nil
+    self.Visible = true
+    self.ToggleKey = config.ToggleKey or Enum.KeyCode.RightShift
+
+    local gui = Instance.new("ScreenGui")
+    gui.Name = config.Name or "DragonParagraphUI"
+    gui.ResetOnSpawn = false
+    gui.IgnoreGuiInset = true
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    gui.Parent = getGuiParent()
+    self.Gui = gui
+
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+    mainFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+    mainFrame.Size = UDim2.new(0, config.Width or 470, 0, config.Height or 560)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = gui
+    self.MainFrame = mainFrame
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 14)
+    corner.Parent = mainFrame
+
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "Shadow"
+    shadow.AnchorPoint = Vector2.new(0.5, 0.5)
+    shadow.Position = UDim2.new(0.5, 0, 0.5, 10)
+    shadow.Size = UDim2.new(1, 36, 1, 36)
+    shadow.BackgroundTransparency = 1
+    shadow.Image = "rbxassetid://5028857084"
+    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+    shadow.ImageTransparency = 0.35
+    shadow.ScaleType = Enum.ScaleType.Slice
+    shadow.SliceCenter = Rect.new(24, 24, 278, 278)
+    shadow.Parent = mainFrame
+
+    local topBar = Instance.new("Frame")
+    topBar.Name = "TopBar"
+    topBar.Size = UDim2.new(1, 0, 0, 52)
+    topBar.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+    topBar.BorderSizePixel = 0
+    topBar.Parent = mainFrame
+
+    local topCorner = Instance.new("UICorner")
+    topCorner.CornerRadius = UDim.new(0, 14)
+    topCorner.Parent = topBar
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "TitleLabel"
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Font = Enum.Font.GothamSemibold
+    titleLabel.TextSize = 18
+    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Text = config.Title or "Dragon Hub 0.3"
+    titleLabel.Position = UDim2.new(0, 20, 0, 4)
+    titleLabel.Size = UDim2.new(1, -40, 0, 24)
+    titleLabel.Parent = topBar
+
+    local subtitleLabel = Instance.new("TextLabel")
+    subtitleLabel.Name = "SubtitleLabel"
+    subtitleLabel.BackgroundTransparency = 1
+    subtitleLabel.Font = Enum.Font.Gotham
+    subtitleLabel.TextSize = 13
+    subtitleLabel.TextColor3 = Color3.fromRGB(180, 190, 220)
+    subtitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    subtitleLabel.Text = config.SubTitle or "Brookhaven Edition • Paragraph Tabs"
+    subtitleLabel.Position = UDim2.new(0, 20, 0, 26)
+    subtitleLabel.Size = UDim2.new(1, -40, 0, 22)
+    subtitleLabel.Parent = topBar
+    self.SubtitleLabel = subtitleLabel
+
+    local tabWidth = config.TabWidth or 160
+
+    local tabsFrame = Instance.new("ScrollingFrame")
+    tabsFrame.Name = "Tabs"
+    tabsFrame.Active = true
+    tabsFrame.ScrollingDirection = Enum.ScrollingDirection.Y
+    tabsFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    tabsFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    tabsFrame.ScrollBarThickness = 4
+    tabsFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
+    tabsFrame.BackgroundTransparency = 0.05
+    tabsFrame.BorderSizePixel = 0
+    tabsFrame.Size = UDim2.new(0, tabWidth, 1, -76)
+    tabsFrame.Position = UDim2.new(0, 12, 0, 60)
+    tabsFrame.Parent = mainFrame
+    self.TabsFrame = tabsFrame
+
+    local tabsCorner = Instance.new("UICorner")
+    tabsCorner.CornerRadius = UDim.new(0, 10)
+    tabsCorner.Parent = tabsFrame
+
+    local tabsPadding = Instance.new("UIPadding")
+    tabsPadding.PaddingTop = UDim.new(0, 8)
+    tabsPadding.PaddingBottom = UDim.new(0, 8)
+    tabsPadding.PaddingLeft = UDim.new(0, 6)
+    tabsPadding.PaddingRight = UDim.new(0, 6)
+    tabsPadding.Parent = tabsFrame
+
+    local tabsLayout = Instance.new("UIListLayout")
+    tabsLayout.Padding = UDim.new(0, 8)
+    tabsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    tabsLayout.Parent = tabsFrame
+    self.TabsLayout = tabsLayout
+
+    local contentFrame = Instance.new("ScrollingFrame")
+    contentFrame.Name = "Content"
+    contentFrame.Active = true
+    contentFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    contentFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    contentFrame.ScrollBarThickness = 8
+    contentFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
+    contentFrame.BackgroundTransparency = 0.05
+    contentFrame.BorderSizePixel = 0
+    contentFrame.Size = UDim2.new(1, -tabWidth - 36, 1, -76)
+    contentFrame.Position = UDim2.new(0, tabWidth + 24, 0, 60)
+    contentFrame.Parent = mainFrame
+    self.ContentFrame = contentFrame
+
+    local contentCorner = Instance.new("UICorner")
+    contentCorner.CornerRadius = UDim.new(0, 10)
+    contentCorner.Parent = contentFrame
+
+    local contentPadding = Instance.new("UIPadding")
+    contentPadding.PaddingTop = UDim.new(0, 8)
+    contentPadding.PaddingBottom = UDim.new(0, 8)
+    contentPadding.PaddingLeft = UDim.new(0, 8)
+    contentPadding.PaddingRight = UDim.new(0, 8)
+    contentPadding.Parent = contentFrame
+
+    local contentLayout = Instance.new("UIListLayout")
+    contentLayout.Padding = UDim.new(0, 10)
+    contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    contentLayout.Parent = contentFrame
+    self.ListLayout = contentLayout
+
+    local dragging = false
+    local dragStart
+    local startPos
+    topBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = mainFrame.Position
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            mainFrame.Position = UDim2.new(
+                startPos.X.Scale,
+                startPos.X.Offset + delta.X,
+                startPos.Y.Scale,
+                startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+
+    UserInputService.InputBegan:Connect(function(input, processed)
+        if processed then
+            return
+        end
+        if input.KeyCode == self.ToggleKey then
+            self:SetVisible(not self.Visible)
+        end
+    end)
+
+    return self
+end
+
+function ParagraphLibrary:SetVisible(state)
+    self.Visible = state and true or false
+    self.MainFrame.Visible = self.Visible
+end
+
+function ParagraphLibrary:Notify(title, message, duration)
+    duration = duration or 4
+    local notification = Instance.new("Frame")
+    notification.Size = UDim2.new(0, 240, 0, 86)
+    notification.Position = UDim2.new(1, -260, 0, 20)
+    notification.BackgroundColor3 = Color3.fromRGB(26, 26, 34)
+    notification.BackgroundTransparency = 0.2
+    notification.BorderSizePixel = 0
+    notification.Parent = self.Gui
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = notification
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Font = Enum.Font.GothamSemibold
+    titleLabel.TextSize = 16
+    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Text = title or "Dragon Hub"
+    titleLabel.Position = UDim2.new(0, 14, 0, 10)
+    titleLabel.Size = UDim2.new(1, -28, 0, 22)
+    titleLabel.Parent = notification
+
+    local bodyLabel = Instance.new("TextLabel")
+    bodyLabel.BackgroundTransparency = 1
+    bodyLabel.Font = Enum.Font.Gotham
+    bodyLabel.TextSize = 14
+    bodyLabel.TextColor3 = Color3.fromRGB(190, 200, 232)
+    bodyLabel.TextXAlignment = Enum.TextXAlignment.Left
+    bodyLabel.TextYAlignment = Enum.TextYAlignment.Top
+    bodyLabel.TextWrapped = true
+    bodyLabel.Text = message or ""
+    bodyLabel.Position = UDim2.new(0, 14, 0, 34)
+    bodyLabel.Size = UDim2.new(1, -28, 1, -44)
+    bodyLabel.Parent = notification
+
+    TweenService:Create(notification, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.05}):Play()
+    task.delay(duration, function()
+        if notification then
+            TweenService:Create(notification, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
+            task.wait(0.25)
+            notification:Destroy()
+        end
+    end)
+end
+
+function ParagraphLibrary:AddTab(options)
+    options = options or {}
+    local name = options.Name or ("Tab " .. tostring(#self.TabOrder + 1))
+    if self.Tabs[name] then
+        error("Tab duplicada: " .. name)
+    end
+
+    local tabInfo = {
+        Name = name,
+        Paragraphs = {}
+    }
+
+    local tabParagraph = self:AddParagraph({
+        Title = options.Title or name,
+        Body = options.InactiveBody or options.Body or "Clique para abrir a aba.",
+        Mode = "tab",
+        Indicator = options.Indicator or "○",
+        ActiveIndicator = options.ActiveIndicator or "●",
+        InactiveIndicator = options.InactiveIndicator or "○",
+        ActiveBody = options.ActiveBody or "Aba ativa.",
+        InactiveBody = options.InactiveBody or options.Body or "Clique para abrir a aba.",
+        LayoutOrder = options.LayoutOrder or (#self.TabOrder + 1),
+        Height = options.Height or 64,
+        Container = self.TabsFrame,
+        Callback = function()
+            self:SetActiveTab(name)
+        end
+    })
+
+    tabParagraph.Tab = name
+    tabInfo.TabParagraph = tabParagraph
+    self.Tabs[name] = tabInfo
+    table.insert(self.TabOrder, name)
+
+    local libraryRef = self
+    local interface = {}
+    interface.Name = name
+    interface.Paragraph = tabParagraph
+
+    function interface:AddParagraph(parOptions)
+        parOptions = parOptions or {}
+        parOptions.Tab = name
+        return libraryRef:AddParagraph(parOptions)
+    end
+
+    if not self.ActiveTab then
+        self:SetActiveTab(name)
+    else
+        tabParagraph:SetTabActive(self.ActiveTab == name)
+    end
+
+    return interface
+end
+
+function ParagraphLibrary:SetActiveTab(tabName)
+    local tabInfo = self.Tabs[tabName]
+    if not tabInfo then
+        return
+    end
+    if self.ActiveTab == tabName then
+        return
+    end
+    self.ActiveTab = tabName
+    for name, info in pairs(self.Tabs) do
+        local isActive = (name == tabName)
+        if info.TabParagraph then
+            info.TabParagraph:SetTabActive(isActive)
+        end
+        for _, paragraph in ipairs(info.Paragraphs) do
+            if paragraph.Frame then
+                paragraph.Frame.Visible = isActive
+            end
+        end
+    end
+    self.ContentFrame.CanvasPosition = Vector2.new(0, 0)
+end
+
+function ParagraphLibrary:AddParagraph(options)
+    assert(typeof(options) == "table", "AddParagraph requer uma tabela de opções")
+    local title
+    local body
+    local mode
+
+    if options[1] then
+        title = tostring(options[1])
+        body = tostring(options[2] or "")
+        mode = string.lower(options.Mode or "info")
+    else
+        title = tostring(options.Title or "Paragraph")
+        body = tostring(options.Body or "")
+        mode = string.lower(options.Mode or "info")
+    end
+
+    local parentFrame = options.Container or self.ContentFrame
+
+    local container = Instance.new("Frame")
+    container.Name = "Paragraph"
+    container.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    container.BorderSizePixel = 0
+    container.LayoutOrder = options.LayoutOrder or (#self.Paragraphs + 1)
+
+    if parentFrame == self.TabsFrame then
+        container.Size = UDim2.new(1, 0, 0, options.Height or 60)
+    else
+        container.Size = UDim2.new(1, 0, 0, options.Height or 96)
+    end
+
+    container.Parent = parentFrame
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 10)
+    corner.Parent = container
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(60, 80, 140)
+    stroke.Thickness = 1.4
+    stroke.Transparency = parentFrame == self.TabsFrame and 0.4 or 0.6
+    stroke.Parent = container
+
+    local padding = Instance.new("UIPadding")
+    padding.PaddingLeft = UDim.new(0, 16)
+    padding.PaddingRight = UDim.New(0, 16)
+    padding.PaddingTop = UDim.new(0, parentFrame == self.TabsFrame and 8 or 10)
+    padding.PaddingBottom = UDim.new(0, parentFrame == self.TabsFrame and 8 or 10)
+    padding.Parent = container
+
+    local indicator = Instance.new("TextLabel")
+    indicator.Name = "Indicator"
+    indicator.BackgroundTransparency = 1
+    indicator.Font = Enum.Font.GothamSemibold
+    indicator.TextSize = parentFrame == self.TabsFrame and 14 or 15
+    indicator.TextColor3 = Color3.fromRGB(120, 130, 220)
+    indicator.TextXAlignment = Enum.TextXAlignment.Left
+    indicator.Size = UDim2.new(0, 56, 1, 0)
+    indicator.Position = UDim2.new(0, 0, 0, 0)
+    indicator.Text = options.Indicator or ""
+    indicator.Parent = container
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "Title"
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Font = Enum.Font.GothamSemibold
+    titleLabel.TextSize = parentFrame == self.TabsFrame and 16 or 18
+    titleLabel.TextColor3 = Color3.fromRGB(235, 240, 255)
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Text = title
+    titleLabel.Position = UDim2.new(0, 56, 0, 0)
+    titleLabel.Size = UDim2.new(1, -56, parentFrame == self.TabsFrame and 0.5 or 0.45, 0)
+    titleLabel.Parent = container
+
+    local bodyLabel = Instance.new("TextLabel")
+    bodyLabel.Name = "Body"
+    bodyLabel.BackgroundTransparency = 1
+    bodyLabel.Font = Enum.Font.Gotham
+    bodyLabel.TextSize = parentFrame == self.TabsFrame and 13 or 14
+    bodyLabel.TextColor3 = Color3.fromRGB(185, 190, 215)
+    bodyLabel.TextWrapped = true
+    bodyLabel.TextXAlignment = Enum.TextXAlignment.Left
+    bodyLabel.TextYAlignment = Enum.TextYAlignment.Top
+    bodyLabel.Text = body
+    bodyLabel.Position = UDim2.new(0, 56, parentFrame == self.TabsFrame and 0.5 or 0.45, 0)
+    bodyLabel.Size = UDim2.new(1, -56, parentFrame == self.TabsFrame and 0.5 or 0.55, 0)
+    bodyLabel.Parent = container
+
+    local paragraph = setmetatable({}, ParagraphObject)
+    paragraph.Library = self
+    paragraph.Frame = container
+    paragraph.TitleLabel = titleLabel
+    paragraph.BodyLabel = bodyLabel
+    paragraph.Indicator = indicator
+    paragraph.Mode = mode
+    paragraph.LayoutOrder = container.LayoutOrder
+    paragraph.BaseTitle = title
+    paragraph.BaseBody = body
+    paragraph.Description = options.Description
+    paragraph.Callback = options.Callback
+    paragraph._touchLastTap = 0
+    paragraph.ActiveIndicator = options.ActiveIndicator
+    paragraph.InactiveIndicator = options.InactiveIndicator
+    paragraph.ActiveBody = options.ActiveBody
+    paragraph.InactiveBody = options.InactiveBody
+
+    if mode == "toggle" then
+        paragraph.ToggleState = options.Default and true or false
+        paragraph.ToggleOnText = options.OnText or "Ativado."
+        paragraph.ToggleOffText = options.OffText or "Desativado."
+        paragraph.ToggleIndicatorOn = options.IndicatorOn or "ON"
+        paragraph.ToggleIndicatorOff = options.IndicatorOff or "OFF"
+        paragraph:Refresh()
+    elseif mode == "button" then
+        paragraph.BodyLabel.Text = body ~= "" and body or "Clique para executar."
+        paragraph.Indicator.Text = options.Indicator or "RUN"
+    elseif mode == "stepper" then
+        paragraph.Min = options.Min or 0
+        paragraph.Max = options.Max or 100
+        paragraph.Step = options.Step or 1
+        paragraph.Wrap = options.Wrap and true or false
+
+        if options.List then
+            paragraph.List = options.List
+            paragraph.Min = 1
+            paragraph.Max = #options.List
+            paragraph.Value = math.clamp(options.Default or 1, paragraph.Min, paragraph.Max)
+        else
+            paragraph.Value = math.clamp(options.Default or paragraph.Min, paragraph.Min, paragraph.Max)
+        end
+
+        paragraph.Format = options.Format
+        paragraph.DecreaseHint = options.DecreaseHint or "Shift+Clique ou botão direito diminui."
+        paragraph.IncreaseHint = options.IncreaseHint or "Clique para aumentar."
+        paragraph.Indicator.Text = options.Indicator or "VAL"
+        paragraph:Refresh()
+    elseif mode == "tab" then
+        paragraph.TabButton = true
+        paragraph.TabActive = false
+        paragraph.Indicator.Text = options.InactiveIndicator or "○"
+        container.Size = UDim2.new(1, 0, 0, options.Height or 60)
+        paragraph:SetTabActive(false, true)
+    else
+        paragraph.Indicator.Text = options.Indicator or "INFO"
+        paragraph.BodyLabel.Text = body
+    end
+
+    container.MouseEnter:Connect(function()
+        TweenService:Create(stroke, TweenInfo.new(0.15), {Transparency = 0.2}):Play()
+        TweenService:Create(container, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(36, 36, 48)}):Play()
+    end)
+
+    container.MouseLeave:Connect(function()
+        local targetTransparency = parentFrame == self.TabsFrame and (paragraph.TabActive and 0.15 or 0.4) or 0.6
+        TweenService:Create(stroke, TweenInfo.new(0.15), {Transparency = targetTransparency}):Play()
+        local baseColor
+        if parentFrame == self.TabsFrame then
+            baseColor = paragraph.TabActive and Color3.fromRGB(46, 48, 68) or Color3.fromRGB(30, 30, 42)
+        else
+            baseColor = Color3.fromRGB(30, 30, 40)
+        end
+        TweenService:Create(container, TweenInfo.new(0.15), {BackgroundColor3 = baseColor}):Play()
+    end)
+
+    container.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            paragraph:_handlePrimaryInput(input)
+        elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
+            paragraph:_handleSecondaryInput(input)
+        end
+    end)
+
+    table.insert(self.Paragraphs, paragraph)
+
+    if mode ~= "tab" then
+        local tabName = options.Tab
+        if tabName and self.Tabs[tabName] then
+            table.insert(self.Tabs[tabName].Paragraphs, paragraph)
+        end
+        if parentFrame ~= self.TabsFrame then
+            if self.ActiveTab then
+                container.Visible = (tabName == self.ActiveTab)
+            else
+                container.Visible = true
+            end
+        end
+    else
+        table.insert(self.TabParagraphs, paragraph)
+    end
+
+    return paragraph
+end
+
+function ParagraphObject:Refresh()
+    if self.Mode == "toggle" then
+        local indicatorText = self.ToggleState and self.ToggleIndicatorOn or self.ToggleIndicatorOff
+        local indicatorColor = self.ToggleState and Color3.fromRGB(110, 220, 150) or Color3.fromRGB(220, 120, 120)
+        self.Indicator.Text = indicatorText
+        self.Indicator.TextColor3 = indicatorColor
+
+        local lines = {}
+        if self.Description then
+            table.insert(lines, self.Description)
+        end
+        if self.ToggleState then
+            table.insert(lines, self.ToggleOnText)
+        else
+            table.insert(lines, self.ToggleOffText)
+        end
+        self.BodyLabel.Text = table.concat(lines, "
+")
+    elseif self.Mode == "stepper" then
+        local displayValue
+        if self.List then
+            displayValue = self.List[self.Value]
+        else
+            displayValue = self.Value
+        end
+
+        self.Indicator.Text = tostring(displayValue)
+
+        local lines = {}
+        if self.Description then
+            table.insert(lines, self.Description)
+        end
+
+        local formatted
+        if self.Format then
+            formatted = self.Format(displayValue, self.Value)
+        else
+            formatted = ("Valor atual: %s"):format(tostring(displayValue))
+        end
+        table.insert(lines, formatted)
+        if self.IncreaseHint then
+            table.insert(lines, self.IncreaseHint)
+        end
+        if self.DecreaseHint then
+            table.insert(lines, self.DecreaseHint)
+        end
+        self.BodyLabel.Text = table.concat(lines, "
+")
+    elseif self.Mode == "tab" then
+        if self.TabActive then
+            self.Indicator.Text = self.ActiveIndicator or "●"
+            self.BodyLabel.Text = self.ActiveBody or (self.BaseBody or "")
+        else
+            self.Indicator.Text = self.InactiveIndicator or "○"
+            self.BodyLabel.Text = self.InactiveBody or (self.BaseBody or "")
+        end
+    else
+        self.BodyLabel.Text = self.BaseBody or self.BodyLabel.Text
+    end
+end
+
+function ParagraphObject:_handlePrimaryInput(input)
+    if self.Mode == "toggle" then
+        self:SetToggleState(not self.ToggleState)
+    elseif self.Mode == "button" then
+        if self.Callback then
+            self:Flash()
+            self.Callback()
+        end
+    elseif self.Mode == "stepper" then
+        local decrease = false
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift) then
+            decrease = true
+        elseif input.UserInputType == Enum.UserInputType.Touch then
+            local now = tick()
+            if now - self._touchLastTap <= 0.35 then
+                decrease = true
+            end
+            self._touchLastTap = now
+        end
+
+        if decrease then
+            self:_operateStepper(-1)
+        else
+            self:_operateStepper(1)
+        end
+    elseif self.Mode == "tab" then
+        if self.Library and self.Tab then
+            self.Library:SetActiveTab(self.Tab)
+        end
+    end
+end
+
+function ParagraphObject:_handleSecondaryInput(_input)
+    if self.Mode == "stepper" then
+        self:_operateStepper(-1)
+    elseif self.Mode == "toggle" then
+        self:SetToggleState(not self.ToggleState)
+    elseif self.Mode == "tab" then
+        if self.Library and self.Tab then
+            self.Library:SetActiveTab(self.Tab)
+        end
+    end
+end
+
+function ParagraphObject:_operateStepper(direction)
+    local step = self.Step * direction
+    local newValue = self.Value + step
+
+    if self.List then
+        if self.Wrap then
+            if newValue > self.Max then
+                newValue = self.Min
+            elseif newValue < self.Min then
+                newValue = self.Max
+            end
+        else
+            newValue = math.clamp(newValue, self.Min, self.Max)
+        end
+    else
+        newValue = math.clamp(newValue, self.Min, self.Max)
+    end
+
+    if newValue ~= self.Value then
+        self:SetValue(newValue)
+    end
+end
+
+function ParagraphObject:SetValue(value, silent)
+    value = math.clamp(value, self.Min, self.Max)
+    if value == self.Value then
+        return
+    end
+    self.Value = value
+    self:Refresh()
+    if not silent and self.Callback then
+        local displayValue = self.List and self.List[value] or value
+        self.Callback(displayValue, value)
+    end
+end
+
+function ParagraphObject:SetToggleState(state, silent)
+    state = state and true or false
+    if self.ToggleState == state then
+        return
+    end
+    self.ToggleState = state
+    self:Refresh()
+    if not silent and self.Callback then
+        self.Callback(state)
+    end
+end
+
+function ParagraphObject:SetToggleTexts(onText, offText)
+    if onText then
+        self.ToggleOnText = onText
+    end
+    if offText then
+        self.ToggleOffText = offText
+    end
+    self:Refresh()
+end
+
+function ParagraphObject:SetDescription(description)
+    self.Description = description
+    self:Refresh()
+end
+
+function ParagraphObject:SetBodyText(text)
+    self.BaseBody = text
+    self.BodyLabel.Text = text
+end
+
+function ParagraphObject:GetToggleState()
+    return self.ToggleState
+end
+
+function ParagraphObject:GetValue()
+    return self.Value
+end
+
+function ParagraphObject:Flash()
+    local stroke = self.Frame:FindFirstChildOfClass("UIStroke")
+    if stroke then
+        TweenService:Create(stroke, TweenInfo.new(0.12), {Color = Color3.fromRGB(255, 200, 120)}):Play()
+        task.delay(0.18, function()
+            if stroke then
+                TweenService:Create(stroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(60, 80, 140)}):Play()
+            end
+        end)
+    end
+end
+
+function ParagraphObject:SetTabActive(active, instant)
+    if self.Mode ~= "tab" then
+        return
+    end
+    self.TabActive = active and true or false
+    local targetColor = self.TabActive and Color3.fromRGB(46, 48, 68) or Color3.fromRGB(30, 30, 42)
+    local targetTitle = self.TabActive and Color3.fromRGB(240, 240, 255) or Color3.fromRGB(180, 185, 210)
+    local stroke = self.Frame:FindFirstChildOfClass("UIStroke")
+    if stroke then
+        stroke.Color = self.TabActive and Color3.fromRGB(120, 150, 255) or Color3.fromRGB(60, 80, 140)
+        stroke.Transparency = self.TabActive and 0.15 or 0.45
+    end
+    if instant then
+        self.Frame.BackgroundColor3 = targetColor
+        self.TitleLabel.TextColor3 = targetTitle
+    else
+        TweenService:Create(self.Frame, TweenInfo.new(0.15), {BackgroundColor3 = targetColor}):Play()
+        TweenService:Create(self.TitleLabel, TweenInfo.new(0.15), {TextColor3 = targetTitle}):Play()
+    end
+    self:Refresh()
+end
+
+--// Instanciando a biblioteca e criando as abas
+local ui = ParagraphLibrary.new({
+    Title = "Dragon Hub 0.3",
+    SubTitle = "Brookhaven Edition • Paragraph Tabs",
+    ToggleKey = Enum.KeyCode.RightShift,
+    Width = 520,
+    Height = 560,
+    TabWidth = 170
+})
+
+local principalTab = ui:AddTab({
+    Name = "Principal",
+    Title = "Principal",
+    Indicator = "◎",
+    ActiveBody = "Informações gerais e ação rápida disponíveis.",
+    InactiveBody = "Clique para abrir a aba Principal."
+})
+
+local flyTab = ui:AddTab({
+    Name = "Fly",
+    Title = "Fly",
+    Indicator = "✈",
+    ActiveBody = "Configurações de voo em exibição.",
+    InactiveBody = "Clique para ajustar o modo Fly."
+})
+
+local speedTab = ui:AddTab({
+    Name = "Speed",
+    Title = "Speed",
+    Indicator = "⚡",
+    ActiveBody = "Ajustes de velocidade ativos.",
+    InactiveBody = "Clique para configurar o Speed."
+})
+
+local jumpTab = ui:AddTab({
+    Name = "Jump",
+    Title = "Jump",
+    Indicator = "🦘",
+    ActiveBody = "Personalize o JumpPower aqui.",
+    InactiveBody = "Clique para abrir as opções de salto."
+})
+
+local clickTab = ui:AddTab({
+    Name = "Click TP",
+    Title = "Click TP",
+    Indicator = "📍",
+    ActiveBody = "Ferramenta de teleporte pronta para uso.",
+    InactiveBody = "Clique para gerenciar o Click Teleport."
+})
+
+local vehiclesTab = ui:AddTab({
+    Name = "Veículos",
+    Title = "Veículos",
+    Indicator = "🚗",
+    ActiveBody = "Funções de veículos visíveis.",
+    InactiveBody = "Clique para controlar spawns e utilidades."
+})
+
+local configTab = ui:AddTab({
+    Name = "Configurações",
+    Title = "Configurações",
+    Indicator = "⚙",
+    ActiveBody = "Opções finais do Hub.",
+    InactiveBody = "Clique para abrir Configurações."
+})
+
+-- Aba Principal
+principalTab:AddParagraph({
+    Title = "Dragon Hub 0.3",
+    Body = "Brookhaven Edition
+Fly • Speed • Jump • Click TP • Veículos",
+    Mode = "Info",
+    Indicator = "HUB"
+})
+
+principalTab:AddParagraph({
+    Title = isMobile and "Modo Mobile detectado" or "Modo PC detectado",
+    Body = isMobile
+        and "Use o joystick para movimentação.
+Toque duplo nos steppers para reduzir valores."
+        or "W/A/S/D para mover, Space para subir, Shift para descer no fly.
+Shift+Clique ou botão direito diminui valores.",
+    Mode = "Info",
+    Indicator = "SYS"
+})
+
+principalTab:AddParagraph({
+    Title = "Recarregar personagem",
+    Body = "Use esta opção se algo travar após utilizar o Hub.",
+    Mode = "Button",
+    Indicator = "RST",
+    Callback = function()
+        if player.Character then
+            player.Character:BreakJoints()
+        end
+    end
+})
+
+-- Aba Fly
+flyTab:AddParagraph({
+    Title = "Controles de voo",
+    Body = isMobile
+        and "Joystick controla direção.
+Toque em pular para subir.
+Toque em agachar para descer."
+        or "W/A/S/D controla direção.
+Space sobe • Shift desce.
+Mouse define orientação.",
+    Mode = "Info",
+    Indicator = "TIP"
+})
+
+local flyToggleParagraph = flyTab:AddParagraph({
+    Title = "Ativar Fly",
+    Mode = "Toggle",
+    IndicatorOn = "ON",
+    IndicatorOff = "OFF",
+    Default = false,
+    Description = "Ativa o modo de voo livre com corpo suave.",
+    OnText = "Fly ativo. Controle total com câmera.",
+    OffText = "Clique para ativar o fly.",
+    Callback = function(state)
+        if state then
+            startFly()
+        else
+            stopFly()
+        end
+    end
+})
+
+local flySpeedParagraph = flyTab:AddParagraph({
+    Title = "Velocidade do fly",
+    Mode = "Stepper",
+    Default = flySpeed,
     Min = 10,
     Max = 200,
-    Default = 60,
-    Increment = 5,
+    Step = 10,
+    Indicator = "SPD",
+    Description = "Defina a velocidade de deslocamento durante o voo.",
+    IncreaseHint = "Clique para aumentar em +10.",
+    DecreaseHint = "Shift+Clique, botão direito ou toque duplo diminui em -10.",
+    Format = function(value)
+        return ("Velocidade atual: %d"):format(value)
+    end,
     Callback = function(value)
         flySpeed = value
     end
 })
 
-FlyTab:AddSection({Name = "Presets"})
-
-FlyTab:AddButton({"Suave (40)", function(Value)
-    flySpeed = 40
-end})
-
-FlyTab:AddButton({"Padrão (80)", function(Value)
-    flySpeed = 80
-end})
-
-FlyTab:AddButton({"Turbo (150)", function(Value)
-    flySpeed = 150
-end})
-
--- TAB SPEED
-local SpeedTab = Window:MakeTab({
-    Name = "Speed",
-    Icon = "rbxassetid://7733770649",
-    PremiumOnly = false
+-- Aba Speed
+local speedToggleParagraph = speedTab:AddParagraph({
+    Title = "Speed",
+    Mode = "Toggle",
+    IndicatorOn = "ON",
+    IndicatorOff = "OFF",
+    Default = false,
+    Description = "Controla a velocidade de corrida.",
+    OnText = ("Speed ativo. Valor atual: %d"):format(speedValue),
+    OffText = "Clique para travar uma velocidade personalizada.",
+    Callback = function(state)
+        speedEnabled = state
+        humanoid.WalkSpeed = state and speedValue or 16
+    end
 })
 
-SpeedTab:AddSection({Name = "Velocidade de Corrida"})
-
-local SpeedInfo = SpeedTab:AddParagraph({"Dicas", "Ative e ajuste sua velocidade
-Cuidado para não chamar atenção!"})
-
-local SpeedToggle = SpeedTab:AddToggle({
-    Name = "Ativar Speed",
-    Description = "Multiplique sua <font color='rgb(100, 200, 255)'>velocidade</font>",
-    Default = false
-})
-SpeedToggle:Callback(function(Value)
-    speedEnabled = Value
-    humanoid.WalkSpeed = Value and speedValue or 16
-end)
-
-SpeedTab:AddSlider({
-    Name = "Valor de Speed",
+local speedStepperParagraph = speedTab:AddParagraph({
+    Title = "Valor de Speed",
+    Mode = "Stepper",
+    Default = speedValue,
     Min = 16,
     Max = 120,
-    Default = 16,
-    Increment = 2,
+    Step = 4,
+    Indicator = "VAL",
+    Description = "Defina o valor usado quando o Speed estiver ligado.",
+    Format = function(value)
+        return ("Valor atual: %d"):format(value)
+    end,
     Callback = function(value)
         speedValue = value
         if speedEnabled then
             humanoid.WalkSpeed = speedValue
         end
+        speedToggleParagraph:SetToggleTexts(
+            ("Speed ativo. Valor atual: %d"):format(speedValue),
+            "Clique para travar uma velocidade personalizada."
+        )
     end
 })
 
--- TAB JUMP
-local JumpTab = Window:MakeTab({
-    Name = "Jump",
-    Icon = "rbxassetid://7734025381",
-    PremiumOnly = false
+-- Aba Jump
+local jumpToggleParagraph = jumpTab:AddParagraph({
+    Title = "Jump",
+    Mode = "Toggle",
+    IndicatorOn = "ON",
+    IndicatorOff = "OFF",
+    Default = false,
+    Description = "Personaliza a altura do salto.",
+    OnText = ("Jump ativo. Valor atual: %d"):format(jumpValue),
+    OffText = "Clique para ajustar o JumpPower.",
+    Callback = function(state)
+        jumpEnabled = state
+        humanoid.JumpPower = state and jumpValue or 50
+    end
 })
 
-JumpTab:AddSection({Name = "Força de Pulo"})
-
-local JumpInfo = JumpTab:AddParagraph({"Dicas", "Ative e escolha a altura desejada
-Útil para acessar locais altos"})
-
-local JumpToggle = JumpTab:AddToggle({
-    Name = "Ativar Jump Power",
-    Description = "Controle sua <font color='rgb(150, 255, 150)'>altura de pulo</font>",
-    Default = false
-})
-JumpToggle:Callback(function(Value)
-    jumpEnabled = Value
-    humanoid.JumpPower = Value and jumpValue or 50
-end)
-
-JumpTab:AddSlider({
-    Name = "Força do Pulo",
+local jumpStepperParagraph = jumpTab:AddParagraph({
+    Title = "Valor de Jump",
+    Mode = "Stepper",
+    Default = jumpValue,
     Min = 50,
     Max = 200,
-    Default = 50,
-    Increment = 5,
+    Step = 10,
+    Indicator = "VAL",
+    Description = "Defina a força do salto em operação.",
+    Format = function(value)
+        return ("Valor atual: %d"):format(value)
+    end,
     Callback = function(value)
         jumpValue = value
         if jumpEnabled then
             humanoid.JumpPower = jumpValue
         end
+        jumpToggleParagraph:SetToggleTexts(
+            ("Jump ativo. Valor atual: %d"):format(jumpValue),
+            "Clique para ajustar o JumpPower."
+        )
     end
 })
 
--- TAB CLICK TP
-local ClickTPTab = Window:MakeTab({
-    Name = "Click TP",
-    Icon = "rbxassetid://7733981339",
-    PremiumOnly = false
+-- Aba Click TP
+local clickToggleParagraph = clickTab:AddParagraph({
+    Title = "Click Teleport",
+    Mode = "Toggle",
+    IndicatorOn = "ON",
+    IndicatorOff = "OFF",
+    Default = false,
+    Description = "Fornece uma ferramenta para teleporte até o ponto clicado.",
+    OnText = "Ferramenta disponível no inventário. Clique no mapa para teleportar.",
+    OffText = "Clique para receber a ferramenta de teleporte.",
+    Callback = function(state)
+        if state then
+            createClickTPTool()
+        else
+            removeClickTPTool()
+        end
+    end
 })
 
-ClickTPTab:AddSection({Name = "Teleporte Rápido"})
-
-local ClickTPInfo = ClickTPTab:AddParagraph({"Como Usar", "Receba uma ferramenta de teleporte
-Clique (PC) ou toque (Mobile) no local desejado"})
-
-ClickTPTab:AddButton({"Ativar Click TP", function(Value)
-    createClickTPTool()
-    redzlib:MakeNotification({
-        Name = "Ferramenta recebida",
-        Content = "Equipe o Click Teleport para usar.",
-        Time = 3
-    })
-end})
-
-ClickTPTab:AddButton({"Remover Click TP", function(Value)
-    removeClickTPTool()
-end})
-
--- TAB VEÍCULOS
-local VehiclesTab = Window:MakeTab({
-    Name = "Veículos",
-    Icon = "rbxassetid://7734053424",
-    PremiumOnly = false
+clickTab:AddParagraph({
+    Title = "Como usar",
+    Body = "PC: equipe a ferramenta e clique no local desejado.
+Mobile: equipe e toque na área para teletransportar.",
+    Mode = "Info",
+    Indicator = "TIP"
 })
 
-VehiclesTab:AddSection({Name = "Gerenciamento"})
-
-local VehiclesInfo = VehiclesTab:AddParagraph({"Como Funciona", "Selecione modelo e quantidade
-Ative utilidades adicionais se desejar"})
-
-local vehiclesList = {
-    "Sedan", "SUV", "Pickup", "SportsCar", "PoliceCar",
-    "Ambulance", "Helicopter", "Motorcycle", "Bicycle"
-}
-
-VehiclesTab:AddDropdown({
-    Name = "Modelo de Veículo",
-    Options = vehiclesList,
-    Default = "Sedan",
-    Callback = function(value)
+-- Aba Veículos
+local vehicleModelParagraph = vehiclesTab:AddParagraph({
+    Title = "Modelo de veículo",
+    Mode = "Stepper",
+    Indicator = "CAR",
+    Description = "Selecione o modelo para solicitar spawn.",
+    List = vehicleModels,
+    Default = table.find(vehicleModels, selectedVehicle) or 1,
+    Wrap = true,
+    Format = function(value)
+        return ("Modelo atual: %s
+Clique para próximo. Shift ou toque duplo volta."):format(value)
+    end,
+    Callback = function(value, index)
         selectedVehicle = value
     end
 })
 
-VehiclesTab:AddSlider({
-    Name = "Quantidade",
+local vehicleAmountParagraph = vehiclesTab:AddParagraph({
+    Title = "Quantidade",
+    Mode = "Stepper",
+    Indicator = "QTD",
+    Description = "Quantidade de veículos a solicitar por tentativa.",
     Min = 1,
     Max = 6,
-    Default = 3,
-    Increment = 1,
+    Step = 1,
+    Default = spawnAmount,
+    Format = function(value)
+        return ("Quantidade atual: %d"):format(value)
+    end,
     Callback = function(value)
         spawnAmount = value
     end
 })
 
-VehiclesTab:AddButton({"Spawnar Veículos", function(Value)
-    redzlib:MakeNotification({
-        Name = "Spawn enviado",
-        Content = spawnAmount .. "x " .. selectedVehicle .. " solicitados.",
-        Time = 3
-    })
-end})
-
-local AutoRepairToggle = VehiclesTab:AddToggle({
-    Name = "Auto Repair",
-    Description = "Repara <font color='rgb(255, 210, 80)'>automaticamente</font> o veículo atual",
-    Default = false
+vehiclesTab:AddParagraph({
+    Title = "Spawnar veículos",
+    Mode = "Button",
+    Indicator = "GO",
+    Body = "Solicita o spawn na lista do Brookhaven (o jogo pode limitar).",
+    Callback = function()
+        ui:Notify("Spawn enviado", ("%dx %s solicitados. Verifique o jogo."):format(spawnAmount, selectedVehicle), 4)
+    end
 })
-AutoRepairToggle:Callback(function(Value)
-    autoRepairEnabled = Value
-end)
 
-local InfiniteSpeedToggle = VehiclesTab:AddToggle({
-    Name = "Velocidade Infinita",
-    Description = "Aumenta a <font color='rgb(255, 120, 120)'>velocidade máxima</font> do veículo",
-    Default = false
+local autoRepairParagraph = vehiclesTab:AddParagraph({
+    Title = "Auto Repair",
+    Mode = "Toggle",
+    IndicatorOn = "ON",
+    IndicatorOff = "OFF",
+    Description = "Remove efeitos de dano enquanto estiver no assento.",
+    OnText = "Auto Repair ativo. Fumaça e fogo serão eliminados.",
+    OffText = "Clique para ativar o reparo automático.",
+    Callback = function(state)
+        autoRepairEnabled = state
+    end
 })
-InfiniteSpeedToggle:Callback(function(Value)
-    infiniteSpeedEnabled = Value
-end)
+
+local infiniteSpeedParagraph = vehiclesTab:AddParagraph({
+    Title = "Velocidade infinita",
+    Mode = "Toggle",
+    IndicatorOn = "ON",
+    IndicatorOff = "OFF",
+    Description = "Ajusta MaxSpeed e Torque do veículo atual.",
+    OnText = "MaxSpeed ajustado para 500 enquanto você estiver no veículo.",
+    OffText = "Clique para forçar velocidade maior em veículos.",
+    Callback = function(state)
+        infiniteSpeedEnabled = state
+    end
+})
+
+-- Aba Configurações
+configTab:AddParagraph({
+    Title = "Atalho da UI",
+    Body = "Use RightShift para mostrar ou ocultar o Dragon Hub.",
+    Mode = "Info",
+    Indicator = "KEY"
+})
+
+configTab:AddParagraph({
+    Title = "Redefinir ferramentas",
+    Body = "Ao fechar o Hub, o Fly e o Click TP são desativados automaticamente.",
+    Mode = "Info",
+    Indicator = "TIP"
+})
+
+configTab:AddParagraph({
+    Title = "Fechar Hub",
+    Mode = "Button",
+    Indicator = "OFF",
+    Body = "Oculta a interface. Use RightShift para reabrir.",
+    Callback = function()
+        stopFly()
+        removeClickTPTool()
+        flyToggleParagraph:SetToggleState(false, true)
+        speedToggleParagraph:SetToggleState(false, true)
+        jumpToggleParagraph:SetToggleState(false, true)
+        clickToggleParagraph:SetToggleState(false, true)
+        autoRepairParagraph:SetToggleState(false, true)
+        infiniteSpeedParagraph:SetToggleState(false, true)
+        ui:SetVisible(false)
+    end
+})
+
+ui:Notify("Dragon Hub 0.3", "Interface com abas de Paragraph carregada.", 4)
 
 RunService.Heartbeat:Connect(function()
     if autoRepairEnabled then
@@ -402,8 +1274,12 @@ RunService.Heartbeat:Connect(function()
                     if vehicle then
                         for _, part in ipairs(vehicle:GetDescendants()) do
                             if part:IsA("BasePart") then
-                                if part:FindFirstChild("Smoke") then part.Smoke:Destroy() end
-                                if part:FindFirstChild("Fire") then part.Fire:Destroy() end
+                                if part:FindFirstChild("Smoke") then
+                                    part.Smoke:Destroy()
+                                end
+                                if part:FindFirstChild("Fire") then
+                                    part.Fire:Destroy()
+                                end
                             end
                         end
                     end
@@ -433,33 +1309,22 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- TAB CONFIGURAÇÕES
-local SettingsTab = Window:MakeTab({
-    Name = "Configurações",
-    Icon = "rbxassetid://7734013430",
-    PremiumOnly = false
-})
+player.CharacterAdded:Connect(function()
+    task.wait(2)
+    refreshCharacterRefs()
+    flyToggleParagraph:SetToggleState(false, true)
+    speedToggleParagraph:SetToggleState(false, true)
+    jumpToggleParagraph:SetToggleState(false, true)
+    clickToggleParagraph:SetToggleState(false, true)
+    autoRepairParagraph:SetToggleState(false, true)
+    infiniteSpeedParagraph:SetToggleState(false, true)
 
-SettingsTab:AddSection({Name = "Sobre"})
-
-local AboutParagraph = SettingsTab:AddParagraph({"Dragon Hub 0.3", "Brookhaven Edition
-Fly • Speed • Jump • Veículos
-Sistema otimizado para PC e Mobile"})
-
-SettingsTab:AddButton({"Fechar Hub", function(Value)
-    stopFly()
+    speedEnabled = false
+    jumpEnabled = false
+    flyEnabled = false
+    autoRepairEnabled = false
+    infiniteSpeedEnabled = false
     removeClickTPTool()
-    redzlib:ToggleUI()
-end})
 
--- Inicialização
-task.spawn(function()
-    wait(1)
-    redzlib:MakeNotification({
-        Name = "Dragon Hub 0.3",
-        Content = "Carregado com sucesso!",
-        Time = 4
-    })
+    ui:Notify("Dragon Hub 0.3", "Personagem reconstruído. Reative os recursos desejados.", 4)
 end)
-
-redzlib:Init()
