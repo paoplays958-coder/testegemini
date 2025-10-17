@@ -1,0 +1,103 @@
+local redzlib = loadstring(game:HttpGet("https://raw.githubusercontent.com/tbao143/Library-ui/refs/heads/main/Redzhubui"))()
+
+local Window = redzlib:MakeWindow({
+    Title = "Brookhaven Hub",
+    SubTitle = "Redz UI",
+})
+
+-- Aba de Movimento
+local Tab1 = Window:MakeTab({
+    Name = "Movimento",
+    Icon = "rbxassetid://7733992518"
+})
+
+local FlyToggle = Tab1:AddToggle({
+    Name = "Fly",
+    Description = "Ativa ou desativa o Fly",
+    Default = false
+})
+FlyToggle:Callback(function(Value)
+    -- Aqui vai sua função de Fly (exemplo básico, personalize!)
+    if Value then
+        print("Fly Ligado")
+        -- Coloque aqui o seu código real de Fly!
+    else
+        print("Fly Desligado")
+        -- Código para desativar Fly
+    end
+end)
+
+local SpeedToggle = Tab1:AddToggle({
+    Name = "Speed",
+    Description = "Ativa Speed Boost",
+    Default = false
+})
+SpeedToggle:Callback(function(Value)
+    local plr = game.Players.LocalPlayer
+    if plr.Character and plr.Character:FindFirstChild("Humanoid") then
+        if Value then
+            plr.Character.Humanoid.WalkSpeed = 50
+        else
+            plr.Character.Humanoid.WalkSpeed = 16
+        end
+    end
+end)
+
+local JumpToggle = Tab1:AddToggle({
+    Name = "Super Jump",
+    Description = "Pulo alto",
+    Default = false
+})
+JumpToggle:Callback(function(Value)
+    local plr = game.Players.LocalPlayer
+    if plr.Character and plr.Character:FindFirstChild("Humanoid") then
+        if Value then
+            plr.Character.Humanoid.JumpPower = 120
+        else
+            plr.Character.Humanoid.JumpPower = 50
+        end
+    end
+end)
+
+Tab1:AddButton({"Resetar Speed/Jump", function()
+    local plr = game.Players.LocalPlayer
+    if plr.Character and plr.Character:FindFirstChild("Humanoid") then
+        plr.Character.Humanoid.WalkSpeed = 16
+        plr.Character.Humanoid.JumpPower = 50
+    end
+end})
+
+-- Adicionando Paragraph conforme exemplo EXATO que você enviou:
+local Paragraph = Tab1:AddParagraph({"Paragraph", "This is a Paragraph
+Second Line"})
+
+-- Aba de Teleporte (exemplo básico)
+local Tab2 = Window:MakeTab({
+    Name = "Teleporte",
+    Icon = "rbxassetid://7734053495"
+})
+
+Tab2:AddButton({"Banco", function()
+    game.Players.LocalPlayer.Character:MoveTo(Vector3.new(-253, 21, -133))
+end})
+
+Tab2:AddButton({"Helicóptero", function()
+    game.Players.LocalPlayer.Character:MoveTo(Vector3.new(181, 42, 203))
+end})
+
+Tab2:AddParagraph({"ATENÇÃO", "Os locais de teleporte são exemplos.
+Você pode mudar as coordenadas como quiser."})
+
+-- Aba de Informações
+local Tab3 = Window:MakeTab({
+    Name = "Info",
+    Icon = "rbxassetid://7733955740"
+})
+
+Tab3:AddParagraph({"Sobre o Hub", "Feito com RedzLib UI.
+Brookhaven Script simples by ChatGPT.
+Mantenha LocalScript em StarterPlayerScripts para funcionar corretamente."})
+
+Tab3:AddButton({"Créditos", function()
+    print("Hub criado por você e ChatGPT.")
+end})
