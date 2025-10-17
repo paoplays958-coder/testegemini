@@ -1,103 +1,465 @@
+-- ╔══════════════════════════════════════════════════════╗
+-- ║            DRAGON HUB 0.3 - BROOKHAVEN               ║
+-- ║        UI Redz Library • Local Script                 ║
+-- ╚══════════════════════════════════════════════════════╝
+
+-- Serviços principais
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
+
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+
+-- Variáveis de sistemas
+local flyEnabled = false
+local flySpeed = 60
+local bodyVelocity, bodyGyro, flyConnection
+
+local speedEnabled = false
+local speedValue = 16
+
+local jumpEnabled = false
+local jumpValue = 50
+
+local clickTPTool = nil
+
+-- Veículos
+local selectedVehicle = "Sedan"
+local spawnAmount = 3
+local autoRepairEnabled = false
+local infiniteSpeedEnabled = false
+
+-- Funções utilitárias
+local function refreshCharacterRefs()
+    character = player.Character or player.CharacterAdded:Wait()
+    humanoid = character:WaitForChild("Humanoid")
+    rootPart = character:WaitForChild("HumanoidRootPart")
+end
+
+local function stopFly()
+    flyEnabled = false
+    if flyConnection then
+        flyConnection:Disconnect()
+        flyConnection = nil
+    end
+    if bodyVelocity then
+        bodyVelocity:Destroy()
+        bodyVelocity = nil
+    end
+    if bodyGyro then
+        bodyGyro:Destroy()
+        bodyGyro = nil
+    end
+end
+
+local function startFly()
+    refreshCharacterRefs()
+    stopFly()
+    flyEnabled = true
+
+    bodyGyro = Instance.new("BodyGyro")
+    bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+    bodyGyro.P = 9000
+    bodyGyro.Parent = rootPart
+
+    bodyVelocity = Instance.new("BodyVelocity")
+    bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+    bodyVelocity.Parent = rootPart
+
+    flyConnection = RunService.Heartbeat:Connect(function()
+        if not flyEnabled or not rootPart or not bodyVelocity or not bodyGyro then
+            stopFly()
+            return
+        end
+
+        local camera = workspace.CurrentCamera
+        local moveVector = Vector3.new()
+
+        if isMobile then
+            local moveDir = humanoid.MoveDirection
+            if moveDir.Magnitude > 0 then
+                moveVector = (camera.CFrame.RightVector * moveDir.X) + (camera.CFrame.LookVector * -moveDir.Z)
+            end
+        else
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+                moveVector = moveVector + camera.CFrame.LookVector
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+                moveVector = moveVector - camera.CFrame.LookVector
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+                moveVector = moveVector - camera.CFrame.RightVector
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+                moveVector = moveVector + camera.CFrame.RightVector
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+                moveVector = moveVector + Vector3.new(0, 1, 0)
+            end
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+                moveVector = moveVector - Vector3.new(0, 1, 0)
+            end
+        end
+
+        if moveVector.Magnitude > 0 then
+            bodyVelocity.Velocity = moveVector.Unit * flySpeed
+        else
+            bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        end
+
+        bodyGyro.CFrame = camera.CFrame
+    end)
+end
+
+local function createClickTPTool()
+    if clickTPTool then
+        clickTPTool:Destroy()
+    end
+
+    clickTPTool = Instance.new("Tool")
+    clickTPTool.Name = "Click Teleport"
+    clickTPTool.RequiresHandle = false
+    clickTPTool.CanBeDropped = false
+
+    clickTPTool.Activated:Connect(function()
+        local mouse = player:GetMouse()
+        if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            player.Character.HumanoidRootPart.CFrame = CFrame.new(mouse.Hit.Position + Vector3.new(0, 3, 0))
+        end
+    end)
+
+    clickTPTool.Parent = player.Backpack
+end
+
+local function removeClickTPTool()
+    if clickTPTool then
+        clickTPTool:Destroy()
+        clickTPTool = nil
+    end
+end
+
+player.CharacterAdded:Connect(function()
+    wait(2)
+    refreshCharacterRefs()
+    stopFly()
+    speedEnabled = false
+    jumpEnabled = false
+    removeClickTPTool()
+end)
+
+-- Carregar UI
 local redzlib = loadstring(game:HttpGet("https://raw.githubusercontent.com/tbao143/Library-ui/refs/heads/main/Redzhubui"))()
 
 local Window = redzlib:MakeWindow({
-    Title = "Brookhaven Hub",
-    SubTitle = "Redz UI",
+    Title = "Dragon Hub 0.3",
+    SubTitle = "Brookhaven Edition",
+    SaveFolder = "DragonHub_Settings.json"
 })
 
--- Aba de Movimento
-local Tab1 = Window:MakeTab({
-    Name = "Movimento",
-    Icon = "rbxassetid://7733992518"
+-- TAB PRINCIPAL
+local PrincipalTab = Window:MakeTab({
+    Name = "Principal",
+    Icon = "rbxassetid://7733955740",
+    PremiumOnly = false
 })
 
-local FlyToggle = Tab1:AddToggle({
+PrincipalTab:AddSection({Name = "Informações"})
+
+local PrincipalInfo = PrincipalTab:AddParagraph({"Dragon Hub 0.3", "Brookhaven Edition
+" .. (isMobile and "📱 Mobile Ready" or "💻 PC Ready") .. "
+Fly • Speed • Jump • Click TP"})
+
+PrincipalTab:AddSection({Name = "Ações"})
+
+PrincipalTab:AddButton({"Recarregar Personagem", function(Value)
+    player.Character:BreakJoints()
+end})
+
+-- TAB FLY
+local FlyTab = Window:MakeTab({
     Name = "Fly",
-    Description = "Ativa ou desativa o Fly",
+    Icon = "rbxassetid://7733764088",
+    PremiumOnly = false
+})
+
+FlyTab:AddSection({Name = "Controle de Voo"})
+
+local FlyInfo = FlyTab:AddParagraph({"Controles", isMobile and "Use o joystick para mover
+Toque em jump para subir" or "W/A/S/D para direção
+Space para subir • Shift para descer"})
+
+local FlyToggle = FlyTab:AddToggle({
+    Name = "Ativar Fly",
+    Description = "Ative o modo de <font color='rgb(255, 85, 85)'>voo livre</font>",
     Default = false
 })
 FlyToggle:Callback(function(Value)
-    -- Aqui vai sua função de Fly (exemplo básico, personalize!)
     if Value then
-        print("Fly Ligado")
-        -- Coloque aqui o seu código real de Fly!
+        startFly()
     else
-        print("Fly Desligado")
-        -- Código para desativar Fly
+        stopFly()
     end
 end)
 
-local SpeedToggle = Tab1:AddToggle({
+FlyTab:AddSlider({
+    Name = "Velocidade",
+    Min = 10,
+    Max = 200,
+    Default = 60,
+    Increment = 5,
+    Callback = function(value)
+        flySpeed = value
+    end
+})
+
+FlyTab:AddSection({Name = "Presets"})
+
+FlyTab:AddButton({"Suave (40)", function(Value)
+    flySpeed = 40
+end})
+
+FlyTab:AddButton({"Padrão (80)", function(Value)
+    flySpeed = 80
+end})
+
+FlyTab:AddButton({"Turbo (150)", function(Value)
+    flySpeed = 150
+end})
+
+-- TAB SPEED
+local SpeedTab = Window:MakeTab({
     Name = "Speed",
-    Description = "Ativa Speed Boost",
+    Icon = "rbxassetid://7733770649",
+    PremiumOnly = false
+})
+
+SpeedTab:AddSection({Name = "Velocidade de Corrida"})
+
+local SpeedInfo = SpeedTab:AddParagraph({"Dicas", "Ative e ajuste sua velocidade
+Cuidado para não chamar atenção!"})
+
+local SpeedToggle = SpeedTab:AddToggle({
+    Name = "Ativar Speed",
+    Description = "Multiplique sua <font color='rgb(100, 200, 255)'>velocidade</font>",
     Default = false
 })
 SpeedToggle:Callback(function(Value)
-    local plr = game.Players.LocalPlayer
-    if plr.Character and plr.Character:FindFirstChild("Humanoid") then
-        if Value then
-            plr.Character.Humanoid.WalkSpeed = 50
-        else
-            plr.Character.Humanoid.WalkSpeed = 16
-        end
-    end
+    speedEnabled = Value
+    humanoid.WalkSpeed = Value and speedValue or 16
 end)
 
-local JumpToggle = Tab1:AddToggle({
-    Name = "Super Jump",
-    Description = "Pulo alto",
+SpeedTab:AddSlider({
+    Name = "Valor de Speed",
+    Min = 16,
+    Max = 120,
+    Default = 16,
+    Increment = 2,
+    Callback = function(value)
+        speedValue = value
+        if speedEnabled then
+            humanoid.WalkSpeed = speedValue
+        end
+    end
+})
+
+-- TAB JUMP
+local JumpTab = Window:MakeTab({
+    Name = "Jump",
+    Icon = "rbxassetid://7734025381",
+    PremiumOnly = false
+})
+
+JumpTab:AddSection({Name = "Força de Pulo"})
+
+local JumpInfo = JumpTab:AddParagraph({"Dicas", "Ative e escolha a altura desejada
+Útil para acessar locais altos"})
+
+local JumpToggle = JumpTab:AddToggle({
+    Name = "Ativar Jump Power",
+    Description = "Controle sua <font color='rgb(150, 255, 150)'>altura de pulo</font>",
     Default = false
 })
 JumpToggle:Callback(function(Value)
-    local plr = game.Players.LocalPlayer
-    if plr.Character and plr.Character:FindFirstChild("Humanoid") then
-        if Value then
-            plr.Character.Humanoid.JumpPower = 120
-        else
-            plr.Character.Humanoid.JumpPower = 50
+    jumpEnabled = Value
+    humanoid.JumpPower = Value and jumpValue or 50
+end)
+
+JumpTab:AddSlider({
+    Name = "Força do Pulo",
+    Min = 50,
+    Max = 200,
+    Default = 50,
+    Increment = 5,
+    Callback = function(value)
+        jumpValue = value
+        if jumpEnabled then
+            humanoid.JumpPower = jumpValue
         end
+    end
+})
+
+-- TAB CLICK TP
+local ClickTPTab = Window:MakeTab({
+    Name = "Click TP",
+    Icon = "rbxassetid://7733981339",
+    PremiumOnly = false
+})
+
+ClickTPTab:AddSection({Name = "Teleporte Rápido"})
+
+local ClickTPInfo = ClickTPTab:AddParagraph({"Como Usar", "Receba uma ferramenta de teleporte
+Clique (PC) ou toque (Mobile) no local desejado"})
+
+ClickTPTab:AddButton({"Ativar Click TP", function(Value)
+    createClickTPTool()
+    redzlib:MakeNotification({
+        Name = "Ferramenta recebida",
+        Content = "Equipe o Click Teleport para usar.",
+        Time = 3
+    })
+end})
+
+ClickTPTab:AddButton({"Remover Click TP", function(Value)
+    removeClickTPTool()
+end})
+
+-- TAB VEÍCULOS
+local VehiclesTab = Window:MakeTab({
+    Name = "Veículos",
+    Icon = "rbxassetid://7734053424",
+    PremiumOnly = false
+})
+
+VehiclesTab:AddSection({Name = "Gerenciamento"})
+
+local VehiclesInfo = VehiclesTab:AddParagraph({"Como Funciona", "Selecione modelo e quantidade
+Ative utilidades adicionais se desejar"})
+
+local vehiclesList = {
+    "Sedan", "SUV", "Pickup", "SportsCar", "PoliceCar",
+    "Ambulance", "Helicopter", "Motorcycle", "Bicycle"
+}
+
+VehiclesTab:AddDropdown({
+    Name = "Modelo de Veículo",
+    Options = vehiclesList,
+    Default = "Sedan",
+    Callback = function(value)
+        selectedVehicle = value
+    end
+})
+
+VehiclesTab:AddSlider({
+    Name = "Quantidade",
+    Min = 1,
+    Max = 6,
+    Default = 3,
+    Increment = 1,
+    Callback = function(value)
+        spawnAmount = value
+    end
+})
+
+VehiclesTab:AddButton({"Spawnar Veículos", function(Value)
+    redzlib:MakeNotification({
+        Name = "Spawn enviado",
+        Content = spawnAmount .. "x " .. selectedVehicle .. " solicitados.",
+        Time = 3
+    })
+end})
+
+local AutoRepairToggle = VehiclesTab:AddToggle({
+    Name = "Auto Repair",
+    Description = "Repara <font color='rgb(255, 210, 80)'>automaticamente</font> o veículo atual",
+    Default = false
+})
+AutoRepairToggle:Callback(function(Value)
+    autoRepairEnabled = Value
+end)
+
+local InfiniteSpeedToggle = VehiclesTab:AddToggle({
+    Name = "Velocidade Infinita",
+    Description = "Aumenta a <font color='rgb(255, 120, 120)'>velocidade máxima</font> do veículo",
+    Default = false
+})
+InfiniteSpeedToggle:Callback(function(Value)
+    infiniteSpeedEnabled = Value
+end)
+
+RunService.Heartbeat:Connect(function()
+    if autoRepairEnabled then
+        pcall(function()
+            if character and humanoid then
+                local seat = humanoid.SeatPart
+                if seat and seat:IsA("VehicleSeat") then
+                    local vehicle = seat:FindFirstAncestorOfClass("Model")
+                    if vehicle then
+                        for _, part in ipairs(vehicle:GetDescendants()) do
+                            if part:IsA("BasePart") then
+                                if part:FindFirstChild("Smoke") then part.Smoke:Destroy() end
+                                if part:FindFirstChild("Fire") then part.Fire:Destroy() end
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+    end
+
+    if infiniteSpeedEnabled then
+        pcall(function()
+            if character and humanoid then
+                local seat = humanoid.SeatPart
+                if seat and seat:IsA("VehicleSeat") then
+                    seat.MaxSpeed = 500
+                    seat.Torque = 10000
+                end
+            end
+        end)
+    end
+
+    if speedEnabled and humanoid then
+        humanoid.WalkSpeed = speedValue
+    end
+
+    if jumpEnabled and humanoid then
+        humanoid.JumpPower = jumpValue
     end
 end)
 
-Tab1:AddButton({"Resetar Speed/Jump", function()
-    local plr = game.Players.LocalPlayer
-    if plr.Character and plr.Character:FindFirstChild("Humanoid") then
-        plr.Character.Humanoid.WalkSpeed = 16
-        plr.Character.Humanoid.JumpPower = 50
-    end
-end})
-
--- Adicionando Paragraph conforme exemplo EXATO que você enviou:
-local Paragraph = Tab1:AddParagraph({"Paragraph", "This is a Paragraph
-Second Line"})
-
--- Aba de Teleporte (exemplo básico)
-local Tab2 = Window:MakeTab({
-    Name = "Teleporte",
-    Icon = "rbxassetid://7734053495"
+-- TAB CONFIGURAÇÕES
+local SettingsTab = Window:MakeTab({
+    Name = "Configurações",
+    Icon = "rbxassetid://7734013430",
+    PremiumOnly = false
 })
 
-Tab2:AddButton({"Banco", function()
-    game.Players.LocalPlayer.Character:MoveTo(Vector3.new(-253, 21, -133))
+SettingsTab:AddSection({Name = "Sobre"})
+
+local AboutParagraph = SettingsTab:AddParagraph({"Dragon Hub 0.3", "Brookhaven Edition
+Fly • Speed • Jump • Veículos
+Sistema otimizado para PC e Mobile"})
+
+SettingsTab:AddButton({"Fechar Hub", function(Value)
+    stopFly()
+    removeClickTPTool()
+    redzlib:ToggleUI()
 end})
 
-Tab2:AddButton({"Helicóptero", function()
-    game.Players.LocalPlayer.Character:MoveTo(Vector3.new(181, 42, 203))
-end})
+-- Inicialização
+task.spawn(function()
+    wait(1)
+    redzlib:MakeNotification({
+        Name = "Dragon Hub 0.3",
+        Content = "Carregado com sucesso!",
+        Time = 4
+    })
+end)
 
-Tab2:AddParagraph({"ATENÇÃO", "Os locais de teleporte são exemplos.
-Você pode mudar as coordenadas como quiser."})
-
--- Aba de Informações
-local Tab3 = Window:MakeTab({
-    Name = "Info",
-    Icon = "rbxassetid://7733955740"
-})
-
-Tab3:AddParagraph({"Sobre o Hub", "Feito com RedzLib UI.
-Brookhaven Script simples by ChatGPT.
-Mantenha LocalScript em StarterPlayerScripts para funcionar corretamente."})
-
-Tab3:AddButton({"Créditos", function()
-    print("Hub criado por você e ChatGPT.")
-end})
+redzlib:Init()
